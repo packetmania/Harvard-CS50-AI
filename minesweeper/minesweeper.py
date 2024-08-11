@@ -196,10 +196,6 @@ class MinesweeperAI():
         self.moves_made.add(cell)  # for 1)
         self.mark_safe(cell)       # for 2)
 
-        print(f"cell {cell}, count {count}")
-        for s in self.knowledge:
-            print(f"pri-knowledge:{s}")
-
         # Loop over all cells within one row and column
         new_cells = set()
         for i in range(cell[0] - 1, cell[0] + 2):
@@ -219,47 +215,66 @@ class MinesweeperAI():
 
         if new_cells:
             new_sentence = Sentence(new_cells, count)
-            self.knowledge.append(new_sentence)  # for 3）
+            self.knowledge.append(new_sentence)  # for 3)
 
-        # for 4)
-        for s in self.knowledge:
-            self.mines |= s.known_mines()
-            self.safes |= s.known_safes()
+        # for 4) and 5)
+        # Recursive function for knowledge update including inferring
+        def update_knowledge():
+            # Update the sets of safe cells and mines
+            mines_safes_changed = False
+            for sen in self.knowledge:
+                new_mines = sen.known_mines()
+                new_safes = sen.known_safes()
+                if new_mines:
+                    self.mines |= new_mines
+                    mines_safes_changed = True
+                if new_safes:
+                    self.safes |= new_safes
+                    mines_safes_changed = True
+                if new_mines or new_safes:
+                    # Remove this sentence as the information has been processed
+                    self.knowledge.remove(sen)
 
-        # for 5)
-        change = True
-        while change:
-            change = False
-            for i, j in itertools.combinations(range(len(self.knowledge)), 2):
-                s_i = self.knowledge[i]
-                s_j = self.knowledge[j]
+            # Update sentences with the known safe cells and known mines
+            kb_changed = False
+            if mines_safes_changed:
+                for sen in self.knowledge:
+                    for mine in self.mines:
+                        if mine in sen.cells:
+                            sen.cells.remove(mine)
+                            sen.count -= 1
+                            kb_changed = True
+                    for safe_cell in self.safes:
+                        if safe_cell in sen.cells:
+                            sen.cells.remove(safe_cell)
+                            kb_changed = True
 
-                if s_j.cells.issubset(s_i.cells):
-                    s_i.cells -= s_j.cells
-                    s_i.count -= s_j.count
-                    change = True
-                elif s_i.cells.issubset(s_j.cells):
-                    s_j.cells -= s_i.cells
-                    s_j.count -= s_i.count
-                    change = True
+            if kb_changed:
+                update_knowledge()
+            else:
+                # Inferring new knowledge
+                sen_changed = True
+                kb_changed = False
+                while sen_changed:
+                    sen_changed = False
+                    for i, j in itertools.combinations(range(len(self.knowledge)), 2):
+                        s_i = self.knowledge[i]
+                        s_j = self.knowledge[j]
 
-            # Remove any sentences that have become empty
-            self.knowledge = [s for s in self.knowledge if len(s.cells) > 0]
+                        if s_j.cells.issubset(s_i.cells):
+                            s_i.cells -= s_j.cells
+                            s_i.count -= s_j.count
+                            sentence_changed = True
+                            kb_changed = True
+                        elif s_i.cells.issubset(s_j.cells):
+                            s_j.cells -= s_i.cells
+                            s_j.count -= s_i.count
+                            sen_changed = True
+                            kb_changed = True
+                if kb_changed:
+                    update_knowledge()
 
-        # Repeat 4) and form the final knowledge after clean-up
-        new_knowledge = []
-        for s in self.knowledge:
-            self.mines |= s.known_mines()
-            self.safes |= s.known_safes()
-            if s.count != 0:
-                new_knowledge.append(s)
-
-        # Remove any sentence with count 0
-        self.knowledge = new_knowledge
-        for s in self.knowledge:
-            print(f"post-knowledge:{s}")
-        print(f"mines {self.mines}")
-        print(f"safes {self.safes}")
+        update_knowledge()
 
     def make_safe_move(self):
         """
