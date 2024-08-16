@@ -11,10 +11,10 @@ def main():
     if len(sys.argv) != 2:
         sys.exit("Usage: python pagerank.py corpus")
     corpus = crawl(sys.argv[1])
-    ranks = sample_pagerank(corpus, DAMPING, SAMPLES)
-    print(f"PageRank Results from Sampling (n = {SAMPLES})")
-    for page in sorted(ranks):
-        print(f"  {page}: {ranks[page]:.4f}")
+    # ranks = sample_pagerank(corpus, DAMPING, SAMPLES)
+    # print(f"PageRank Results from Sampling (n = {SAMPLES})")
+    # for page in sorted(ranks):
+    #     print(f"  {page}: {ranks[page]:.4f}")
     ranks = iterate_pagerank(corpus, DAMPING)
     print(f"PageRank Results from Iteration")
     for page in sorted(ranks):
@@ -81,7 +81,44 @@ def iterate_pagerank(corpus, damping_factor):
     their estimated PageRank value (a value between 0 and 1). All
     PageRank values should sum to 1.
     """
-    raise NotImplementedError
+    # Assigning each page a rank of 1/N, where N is the total number of pages
+    N = len(corpus)
+    pageranks = {page: 1 / N for page in corpus}
+    numlinks = {page: len(corpus[page]) for page in corpus}
+    pageconv = {page: 1 for page in corpus}
+
+    print(corpus)
+
+    # PageRank formula: PR(p)=(1-d)/N+d*sum_i(PR(i)/NumLinks(i))
+    # Where d = the damping factor,
+    #       N = the total number of pages in the corpus,
+    #       i ranges over all pages that link to page p,
+    #       NumLinks(i) = the number of links present on page i.
+    while True:
+        for p in pageranks:
+            # Update page ranks
+            summation = 0
+            last_rank = pageranks[p]
+            for i in corpus:
+                if p in corpus[i]:
+                    summation += pageranks[i] / numlinks[i]
+            pageranks[p] = (1 - damping_factor) / N + damping_factor * summation
+
+            # Update convergence cflag
+            if abs(last_rank - pageranks[p]) <= 0.001:
+                pageconv[p] = 0
+            else:
+                pageconv[p] = 1
+
+        if sum(pageconv.values()) == 0:
+            break
+
+    return pageranks
+
+
+
+    return pageranks
+
 
 
 if __name__ == "__main__":
