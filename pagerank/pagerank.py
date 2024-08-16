@@ -83,11 +83,23 @@ def iterate_pagerank(corpus, damping_factor):
     """
     # Assigning each page a rank of 1/N, where N is the total number of pages
     N = len(corpus)
-    pageranks = {page: 1 / N for page in corpus}
-    numlinks = {page: len(corpus[page]) for page in corpus}
-    pageconv = {page: 1 for page in corpus}
+    allpages = set(corpus.keys())
+    pageranks = {}
+    pageconv = {}
+    numlinks = {}
 
-    print(corpus)
+    # Special handling for page w/o links:
+    #     "A page that has no links at all should be interpreted as having
+    #      one link for every page in the corpus (including itself)."
+    for p in corpus:
+        pageranks[p] = 1 / N
+        pageconv[p] = 1
+        if corpus[p]:
+            numlinks[p] = len(corpus[p])
+        else:
+            # Page has no link
+            corpus[p] = allpages
+            numlinks[p] = N
 
     # PageRank formula: PR(p)=(1-d)/N+d*sum_i(PR(i)/NumLinks(i))
     # Where d = the damping factor,
@@ -114,11 +126,6 @@ def iterate_pagerank(corpus, damping_factor):
             break
 
     return pageranks
-
-
-
-    return pageranks
-
 
 
 if __name__ == "__main__":
