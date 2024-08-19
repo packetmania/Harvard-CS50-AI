@@ -76,7 +76,6 @@ def main():
         # Loop over all sets of people who might have the gene
         for one_gene in powerset(names):
             for two_genes in powerset(names - one_gene):
-
                 # Update probabilities with new joint probability
                 p = joint_probability(people, one_gene, two_genes, have_trait)
                 update(probabilities, one_gene, two_genes, have_trait, p)
@@ -139,7 +138,99 @@ def joint_probability(people, one_gene, two_genes, have_trait):
         * everyone in set `have_trait` has the trait, and
         * everyone not in set` have_trait` does not have the trait.
     """
-    raise NotImplementedError
+    # Define a few auxiliary functions
+    def prob_no_parents(person, num_genes, has_trait):
+        # This is the simplest cases for persons w/o parent information
+        gene_cnt = num_genes[person]
+        return PROBS["gene"][gene_cnt] * PROBS["trait"][gene_cnt][has_trait]
+
+    def prob_has_parents(person, people, num_genes, has_trait):
+        mother_genes = num_genes[people[person]["mother"]]
+        father_genes = num_genes[people[person]["father"]]
+
+        prob_mother_pass = mother_genes / 2
+        prob_father_pass = father_genes / 2
+
+        prob_mother_pass_nomutate = prob_mother_pass * (1 - PROBS["mutation"])
+        prob_mother_pass_mutate = prob_mother_pass * PROBS["mutation"]
+        prob_mother_nopass_nomutate = (1 - prob_mother_pass) * (1 - PROBS["mutation"])
+        prob_mother_nopass_mutate = (1 - prob_mother_pass) * PROBS["mutation"]
+
+        prob_father_pass_nomutate = prob_father_pass * (1 - PROBS["mutation"])
+        prob_father_pass_mutate = prob_father_pass * PROBS["mutation"]
+        prob_father_nopass_nomutate = (1 - prob_father_pass) * (1 - PROBS["mutation"])
+        prob_father_nopass_mutate = (1 - prob_father_pass) * PROBS["mutation"]
+
+        child_genes = num_genes[person]
+        if child_genes == 0:
+            # Child has zero genes - 4 cases:
+            #     #  Mother (pass/mutation) | Father (pass/mutation)
+            #     ==================================================
+            #     1.         Y/Y            |         Y/Y
+            #     2.         Y/Y            |         N/N
+            #     3.         N/N            |         Y/Y
+            #     4.         N/N            |         N/N
+            prob = prob_mother_pass_mutate * prob_father_pass_mutate + \
+                prob_mother_pass_mutate * prob_father_nopass_nomutate + \
+                prob_mother_nopass_nomutate * prob_father_pass_mutate + \
+                prob_mother_nopass_nomutate * prob_father_nopass_nomutate
+        elif child_genes == 1:
+            # Child has one genes - 8 cases:
+            #     #  Source | Mother (pass/mutation) | Father (pass/mutation)
+            #     ===========================================================
+            #     1. Mother |         Y/N            |         Y/Y
+            #     2. Mother |         Y/N            |         N/N
+            #     3. Mother |         N/Y            |         Y/Y
+            #     4. Mother |         N/Y            |         N/N
+            #     5. Father |         Y/Y            |         Y/N
+            #     6. Father |         N/N            |         Y/N
+            #     7. Father |         Y/Y            |         N/Y
+            #     8. Father |         N/N            |         N/Y
+            prob = prob_mother_pass_nomutate * prob_father_pass_mutate + \
+                prob_mother_pass_nomutate * prob_father_nopass_nomutate + \
+                prob_mother_nopass_mutate * prob_father_pass_mutate + \
+                prob_mother_nopass_mutate * prob_father_nopass_nomutate + \
+                prob_mother_pass_mutate * prob_father_pass_nomutate + \
+                prob_mother_nopass_nomutate * prob_father_pass_nomutate + \
+                prob_mother_pass_mutate * prob_father_nopass_mutate + \
+                prob_mother_nopass_nomutate * prob_father_nopass_mutate
+        else:
+            # Child has two genes - 4 cases:
+            #     #  Mother (pass/mutation) | Father (pass/mutation)
+            #     ==================================================
+            #     1.         Y/N            |         Y/N
+            #     2.         Y/N            |         N/Y
+            #     3.         N/Y            |         Y/N
+            #     4.         N/Y            |         N/Y
+            prob = prob_mother_pass_nomutate * prob_father_pass_nomutate + \
+                prob_mother_pass_nomutate * prob_father_nopass_mutate + \
+                prob_mother_nopass_mutate * prob_father_pass_nomutate + \
+                prob_mother_nopass_mutate * prob_father_nopass_mutate
+
+        return prob * PROBS["trait"][child_genes][has_trait]
+
+    num_genes = {}  # Dictionary with person mapping to number of genes
+    for person in people:
+        if person in one_gene:
+            num_genes[person] = 1
+        elif person in two_genes:
+            num_genes[person] = 2
+        else:
+            num_genes[person] = 0
+
+    joint_prob = 1
+    for person in people:
+        if person in have_trait:
+            has_trait = True
+        else:
+            has_trait = False
+
+        if people[person]["mother"] == None:  # No parents case
+            joint_prob *= prob_no_parents(person, num_genes, has_trait)
+        else:  # Known parent case
+            joint_prob *= prob_has_parents(person, people, num_genes, has_trait)
+
+    return joint_prob
 
 
 def update(probabilities, one_gene, two_genes, have_trait, p):
@@ -149,18 +240,18 @@ def update(probabilities, one_gene, two_genes, have_trait, p):
     Which value for each distribution is updated depends on whether
     the person is in `have_gene` and `have_trait`, respectively.
     """
-    for people in probabilities:
-        if people in one_gene:
-            probabilities[people]["gene"][1] += p
-        elif people in two_genes:
-            probabilities[people]["gene"][2] += p
+    for person in probabilities:
+        if person in one_gene:
+            probabilities[person]["gene"][1] += p
+        elif person in two_genes:
+            probabilities[person]["gene"][2] += p
         else:
-            probabilities[people]["gene"][0] += p
+            probabilities[person]["gene"][0] += p
 
-        if people in have_trait:
-            probabilities[people]["trait"][True] += p
+        if person in have_trait:
+            probabilities[person]["trait"][True] += p
         else:
-            probabilities[people]["trait"][False] += p
+            probabilities[person]["trait"][False] += p
 
 
 def normalize(probabilities):
@@ -168,13 +259,13 @@ def normalize(probabilities):
     Update `probabilities` such that each probability distribution
     is normalized (i.e., sums to 1, with relative proportions the same).
     """
-    for people in probabilities:
-        gene_factor = 1.0/sum(probabilities[people]['gene'].values())
-        trait_factor = 1.0 / sum(probabilities[people]['trait'].values())
-        for g in probabilities[people]['gene']:
-            probabilities[people]['gene'][g] *= gene_factor
-        for t in probabilities[people]['trait']:
-            probabilities[people]['trait'][t] *= trait_factor
+    for person in probabilities:
+        gene_factor = 1.0/sum(probabilities[person]['gene'].values())
+        trait_factor = 1.0 / sum(probabilities[person]['trait'].values())
+        for g in probabilities[person]['gene']:
+            probabilities[person]['gene'][g] *= gene_factor
+        for t in probabilities[person]['trait']:
+            probabilities[person]['trait'][t] *= trait_factor
 
 
 if __name__ == "__main__":
