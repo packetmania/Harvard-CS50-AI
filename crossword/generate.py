@@ -99,7 +99,10 @@ class CrosswordCreator():
         (Remove any values that are inconsistent with a variable's unary
          constraints; in this case, the length of the word.)
         """
-        raise NotImplementedError
+        for var in self.domains.keys():
+            for word in self.domains[var].copy():
+                if len(word) != var.length:
+                    self.domains[var].remove(word)
 
     def revise(self, x, y):
         """
@@ -110,7 +113,19 @@ class CrosswordCreator():
         Return True if a revision was made to the domain of `x`; return
         False if no revision was made.
         """
-        raise NotImplementedError
+        revision = False
+        overlap = self.crossword.overlaps[x, y]
+        for value_x in self.domains[x].copy():
+            conflict = True
+            for value_y in self.domains[y]:
+                if value_x[overlap[0]] == value_y[overlap[1]]:
+                    conflict = False
+                    break
+            if conflict:
+                # All y values conflict with x value, remove this x value.
+                self.domains[x].remove(value_x)
+                revision = True
+        return revision
 
     def ac3(self, arcs=None):
         """
@@ -121,21 +136,68 @@ class CrosswordCreator():
         Return True if arc consistency is enforced and no domains are empty;
         return False if one or more domains end up empty.
         """
-        raise NotImplementedError
+        # AC-3 algorithm:
+        # queue = all
+        # arcs in csp
+        # while queue non-empty:
+        #     (X, Y) = Dequeue(queue)
+        #     if Revise(csp, X, Y):
+        #         if size of X.domain == 0:
+        #             return false
+        #         for each Z in X.neighbors - {Y}:
+        #             Enqueue(queue, (Z, X))
+        # return true
+        if arcs == []:
+            return True
+        elif arcs == None:
+            # Initialize a list of all arcs in the problem
+            ovlps = self.crossword.overlaps
+            arcs = [k for k in ovlps if ovlps[k] != None]
+
+        while arcs:
+            x, y = arcs.pop(0)
+            if self.revise(x, y):
+                if not self.domains[x]:
+                    return False
+                self.crossword.neighbors(x).remove(y)
+                for z in self.crossword.neighbors(x):
+                    arcs.append((z,x))
+
+        return True
 
     def assignment_complete(self, assignment):
         """
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
-        raise NotImplementedError
+        for var in self.crossword.variables:
+            if var not in assignment:
+                return False
+        return True
 
     def consistent(self, assignment):
         """
         Return True if `assignment` is consistent (i.e., words fit in crossword
         puzzle without conflicting characters); return False otherwise.
         """
-        raise NotImplementedError
+        # Check all values are unique.
+        if len(assignment) != len(set(assignment.values())):
+            return False
+
+        for var, word in assignment.items():
+            # Check word length - unary constraints
+            if var.length != len(word):
+                return False
+            # Check neighbors - overlapping variables
+            for ngb in self.crossword.neighbors(var):
+                if ngb not in assignment:
+                    continue
+                i, j = self.crossword.overlaps[var, ngb]
+                # Check binary constraints
+                if assignment[var][i] != assignment[ngb][j]:
+                    return False
+
+        return True
 
     def order_domain_values(self, var, assignment):
         """
