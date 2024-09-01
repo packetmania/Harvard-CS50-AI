@@ -1,6 +1,7 @@
 import sys
 import generate
 
+
 def ac3_4():
     """ac3 handles multiple rounds of updates"""
 
@@ -39,6 +40,7 @@ def main():
         print("\nAC-3 test passed!")
     else:
         print("\nAC-3 test failed!")
+
 
 if __name__ == "__main__":
     main()
